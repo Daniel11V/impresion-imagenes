@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generador Multi-Imagen</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='20' y='15' width='60' height='35' rx='3' fill='%232563eb'/><rect x='25' y='20' width='50' height='25' fill='%23fff'/><rect x='30' y='24' width='15' height='3' fill='%232563eb'/><rect x='30' y='30' width='25' height='3' fill='%232563eb'/><rect x='30' y='36' width='20' height='3' fill='%232563eb'/><rect x='15' y='45' width='70' height='30' rx='2' fill='%234b5563'/><rect x='20' y='50' width='60' height='5' fill='%23374151'/><circle cx='30' cy='62' r='3' fill='%2310b981'/><circle cx='40' cy='62' r='3' fill='%23fbbf24'/><circle cx='50' cy='62' r='3' fill='%23ef4444'/><rect x='25' y='70' width='50' height='20' rx='2' fill='%23fff'/><rect x='30' y='74' width='15' height='2' fill='%236b7280'/><rect x='30' y='78' width='25' height='2' fill='%236b7280'/><rect x='30' y='82' width='20' height='2' fill='%236b7280'/></svg>">
     <style>
         :root {
             --bg-color: #f3f4f6;
@@ -60,7 +63,8 @@
             color: #4b5563;
         }
 
-        select, .file-btn {
+        select,
+        .file-btn {
             padding: 0.6rem;
             border: 1px solid #d1d5db;
             border-radius: 6px;
@@ -79,7 +83,10 @@
 
         .file-wrapper input[type=file] {
             position: absolute;
-            left: 0; top: 0; right: 0; bottom: 0;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
             opacity: 0;
             cursor: pointer;
             width: 100%;
@@ -98,19 +105,15 @@
             display: flex;
             flex-direction: column;
             gap: 1rem;
-            max-height: 300px;
-            overflow-y: auto;
-            padding-right: 5px;
         }
 
         .list-item {
             display: flex;
-            gap: 1rem;
             background: #f9fafb;
             padding: 0.75rem;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
-            align-items: center;
+            align-items: flex-start;
             flex-wrap: wrap;
         }
 
@@ -120,17 +123,19 @@
             object-fit: cover;
             border-radius: 4px;
             border: 1px solid #ddd;
+            flex-shrink: 0;
+            margin-right: 0.75rem;
         }
 
         .item-info {
             flex: 1;
-            min-width: 150px;
+            min-width: 200px;
         }
 
         .item-name {
             font-weight: 500;
             font-size: 0.9rem;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.8rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -138,8 +143,29 @@
 
         .item-controls {
             display: flex;
-            gap: 1rem;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        /* En desktop, los controles en una sola fila */
+        @media (min-width: 769px) {
+            .item-controls {
+                flex-direction: row;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+        }
+
+        .control-row {
+            display: flex;
             align-items: center;
+            gap: 0.5rem;
+        }
+
+        .control-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            min-width: 80px;
         }
 
         .mini-input {
@@ -147,6 +173,72 @@
             padding: 0.4rem;
             border: 1px solid #d1d5db;
             border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .small-select {
+            width: 90px;
+            padding: 0.4rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .cm-label {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        /* Switch */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
         }
 
         .remove-btn {
@@ -156,6 +248,7 @@
             cursor: pointer;
             font-size: 1.2rem;
             padding: 0 0.5rem;
+            flex-shrink: 0;
         }
 
         /* --- BOTÓN IMPRIMIR --- */
@@ -191,49 +284,130 @@
             cursor: not-allowed;
         }
 
-        /* --- HOJA DE IMPRESIÓN --- */
-        .sheet-container {
+        /* --- HOJAS DE IMPRESIÓN --- */
+        .sheets-container {
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
             margin-bottom: 2rem;
             overflow: auto;
             max-width: 100%;
-            background: #525252; /* Fondo oscuro para resaltar la hoja */
+            background: #e3e3e3;
             padding: 2rem;
-            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
         }
 
         .sheet {
             background: white;
             margin: 0 auto;
-            padding: 10mm; /* Margen seguro */
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            align-items: flex-start; /* Apilar arriba */
-            gap: 5mm; /* Espacio vertical entre grupos de imágenes diferentes */
-            overflow: hidden; /* Cortar lo que sobre */
+            align-items: flex-start;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Área de contenido dentro de la hoja (con padding) */
+        .sheet-content {
+            width: 100%;
+            height: 100%;
+            padding: 5mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 3mm;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 2mm;
+            right: 5mm;
+            font-size: 0.7rem;
+            color: #9ca3af;
         }
 
         /* Contenedor de GRUPO de una misma imagen */
         .image-group-grid {
             display: grid;
             width: 100%;
-            gap: 2mm; /* Espacio pequeño entre copias de la misma imagen */
-            /* Las columnas se definen inline con style */
+            gap: 2mm;
+        }
+
+        .image-group-custom {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2mm;
+            width: 100%;
         }
 
         .print-img {
             width: 100%;
             height: auto;
             display: block;
-            /* Para que no se estiren feo, mantienen su ratio */
-            object-fit: contain; 
+            object-fit: contain;
+        }
+
+        .print-img-custom {
+            display: block;
+            object-fit: contain;
+        }
+
+        /* --- RESPONSIVE MOBILE --- */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .controls {
+                padding: 1rem;
+            }
+
+            .sheets-container {
+                padding: 10px;
+                padding-top: 20px;
+                margin-left: -10px;
+                margin-right: -10px;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .sheet {
+                /* Mantener aspect ratio en mobile */
+                width: 100% !important;
+                aspect-ratio: 210 / 297;
+                /* Ratio A4 por defecto */
+                height: auto !important;
+                transform: scale(0.95);
+                transform-origin: top center;
+            }
+
+            .item-info {
+                min-width: 150px;
+            }
+
+            .control-label {
+                min-width: 70px;
+                font-size: 0.8rem;
+            }
+
+            .mini-input {
+                width: 60px;
+            }
+        }
+
+        /* Media query adicional para tablets */
+        @media (max-width: 1024px) and (min-width: 769px) {
+            .sheet {
+                transform: scale(0.85);
+                transform-origin: top center;
+            }
         }
 
         /* --- ESTILOS DE IMPRESIÓN --- */
         @media print {
             @page {
                 margin: 0;
+                size: A4 portrait;
             }
 
             body {
@@ -243,41 +417,71 @@
                 display: block;
             }
 
-            .controls, .sheet-container {
+            .controls {
+                display: none !important;
+            }
+
+            .sheets-container {
                 box-shadow: none;
                 margin: 0;
                 padding: 0;
                 background: none;
                 width: 100%;
                 max-width: none;
-            }
-
-            .controls {
-                display: none !important;
-            }
-
-            .sheet-container {
-                overflow: visible;
+                gap: 0;
+                display: block;
             }
 
             .sheet {
                 width: 100% !important;
-                height: 100vh; /* Altura completa */
+                height: 100vh !important;
                 page-break-after: always;
+                page-break-inside: avoid;
+                transform: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .sheet:last-child {
+                page-break-after: auto;
+            }
+
+            .sheet-content {
+                padding: 5mm;
+            }
+
+            .page-number {
+                display: none;
             }
         }
     </style>
     <style id="dynamic-page-style">
-        @page { size: A4 portrait; }
-        .sheet { width: 210mm; min-height: 297mm; }
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        .sheet {
+            width: 210mm;
+            height: 297mm;
+        }
+
+        /* Aspect ratio para mobile según tamaño de papel */
+        @media (max-width: 768px) {
+            .sheet {
+                aspect-ratio: 210 / 297;
+                /* A4 por defecto */
+            }
+        }
     </style>
 </head>
+
 <body>
 
     <div class="controls">
         <div class="header-row">
             <!-- 1. Tamaño de Hoja -->
-            <div class="input-group" style="flex: 0 0 200px;">
+            <div class="input-group">
                 <label>1. Tamaño de Hoja</label>
                 <select id="paperSize" onchange="updateSheetSize()">
                     <option value="a4">A4</option>
@@ -291,7 +495,6 @@
                 <label>2. Agregar Imágenes (Selecciona varias)</label>
                 <div class="file-wrapper">
                     <button class="file-btn">📂 Cargar Archivos...</button>
-                    <!-- "multiple" permite elegir varios archivos -->
                     <input type="file" id="filesInput" accept="image/*" multiple onchange="handleFiles(this)">
                 </div>
             </div>
@@ -300,7 +503,8 @@
         <!-- Lista de Imágenes Configurables -->
         <label style="margin-bottom:0.5rem; display:block;">3. Configurar Imágenes:</label>
         <div id="imageList" class="image-list">
-            <div style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">
+            <div
+                style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">
                 No hay imágenes cargadas.
             </div>
         </div>
@@ -310,100 +514,107 @@
         </div>
     </div>
 
-    <div class="sheet-container">
-        <div id="sheet" class="sheet">
-            <!-- Las imágenes se renderizan aquí -->
-        </div>
+    <div id="sheetsContainer" class="sheets-container">
+        <!-- Las hojas se generan aquí dinámicamente -->
     </div>
 
     <script>
         // Estado global
-        let imagesData = []; 
-        /* Estructura de imagesData:
-           {
-               id: timestamp,
-               file: FileObject,
-               url: DataURL,
-               name: string,
-               copies: 4, (default)
-               cols: 2    (default)
-           }
-        */
+        let imagesData = [];
+        let currentPaperSize = 'a4';
 
         const sizes = {
-            a4: { w: '210mm', h: '297mm' },
-            letter: { w: '215.9mm', h: '279.4mm' },
-            legal: { w: '215.9mm', h: '355.6mm' }
+            a4: { w: 210, h: 297, wStr: '210mm', hStr: '297mm' },
+            letter: { w: 215.9, h: 279.4, wStr: '215.9mm', hStr: '279.4mm' },
+            legal: { w: 215.9, h: 355.6, wStr: '215.9mm', hStr: '355.6mm' }
         };
 
+        const PADDING_MM = 5; // Margen interno (debe coincidir con padding en .sheet-content)
+        const GAP_MM = 3; // Gap entre grupos (debe coincidir con gap en .sheet-content)
+
         function updateSheetSize() {
-            const sizeKey = document.getElementById('paperSize').value;
-            const s = sizes[sizeKey];
+            currentPaperSize = document.getElementById('paperSize').value;
+            const s = sizes[currentPaperSize];
+
+            // Calcular aspect ratio
+            const aspectRatio = s.w / s.h;
+
             document.getElementById('dynamic-page-style').innerHTML = `
-                @page { size: ${sizeKey} portrait; margin: 0; }
-                .sheet { width: ${s.w}; min-height: ${s.h}; }
+                @page { size: ${currentPaperSize} portrait; margin: 0; }
+                .sheet { width: ${s.wStr}; height: ${s.hStr}; }
+                @media (max-width: 768px) {
+                    .sheet {
+                        aspect-ratio: ${s.w} / ${s.h};
+                    }
+                }
             `;
+            renderSheet();
         }
 
-        // Función para manejar la impresión
         function handlePrint() {
             if (imagesData.length === 0) {
                 alert('Por favor, carga al menos una imagen antes de imprimir.');
                 return;
             }
 
-            // Dar un pequeño delay para asegurar que el render esté completo
             setTimeout(() => {
                 window.print();
             }, 100);
         }
 
-        // Manejar subida de archivos
         function handleFiles(input) {
             if (!input.files || input.files.length === 0) return;
 
             Array.from(input.files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    // Agregar al estado
                     imagesData.push({
                         id: Date.now() + Math.random(),
                         name: file.name,
                         url: e.target.result,
                         copies: 4,
-                        cols: 2
+                        maxSize: true,
+                        cols: 2,
+                        customDimension: 'width',
+                        customValue: 5.00
                     });
-                    renderUI(); // Actualizar lista y hoja
+                    renderUI();
                 };
                 reader.readAsDataURL(file);
             });
-            
-            // Limpiar input para permitir subir lo mismo de nuevo si se quiere
+
             input.value = '';
         }
 
-        // Eliminar imagen
         function removeImage(id) {
             imagesData = imagesData.filter(img => img.id !== id);
             renderUI();
         }
 
-        // Actualizar valores (copias o columnas)
         function updateValue(id, field, value) {
             const img = imagesData.find(i => i.id === id);
             if (img) {
-                img[field] = parseInt(value) || 1;
-                renderSheet(); // Solo repintar hoja, no la lista entera para no perder foco
+                if (field === 'maxSize') {
+                    img[field] = value;
+                    renderUI();
+                } else if (field === 'customValue') {
+                    img[field] = parseFloat(value) || 5.00;
+                    renderSheet();
+                } else if (field === 'customDimension') {
+                    img[field] = value;
+                    renderSheet();
+                } else {
+                    img[field] = parseInt(value) || 1;
+                    renderSheet();
+                }
             }
         }
 
-        // Renderizar todo (Lista de controles + Hoja)
         function renderUI() {
             renderList();
             renderSheet();
         }
 
-        // 1. Renderizar Lista de Controles
         function renderList() {
             const container = document.getElementById('imageList');
             container.innerHTML = '';
@@ -416,21 +627,45 @@
             imagesData.forEach(img => {
                 const div = document.createElement('div');
                 div.className = 'list-item';
+
+                const maxSizeControls = img.maxSize ? `
+                    <div class="control-row">
+                        <span class="control-label">Por Fila:</span>
+                        <input type="number" class="mini-input" value="${img.cols}" min="1" max="10" 
+                            onchange="updateValue(${img.id}, 'cols', this.value)">
+                    </div>
+                ` : `
+                    <div class="control-row">
+                        <select class="small-select" onchange="updateValue(${img.id}, 'customDimension', this.value)">
+                            <option value="width" ${img.customDimension === 'width' ? 'selected' : ''}>Ancho</option>
+                            <option value="height" ${img.customDimension === 'height' ? 'selected' : ''}>Alto</option>
+                        </select>
+                        <input type="number" class="mini-input" value="${img.customValue.toFixed(2)}" 
+                            min="0.1" max="50" step="0.01"
+                            onchange="updateValue(${img.id}, 'customValue', this.value)">
+                        <span class="cm-label">cm</span>
+                    </div>
+                `;
+
                 div.innerHTML = `
                     <img src="${img.url}" class="thumb">
                     <div class="item-info">
                         <div class="item-name" title="${img.name}">${img.name}</div>
                         <div class="item-controls">
-                            <div>
-                                <label style="font-size:0.75rem; display:block;">Cant.</label>
+                            <div class="control-row">
+                                <span class="control-label">Cantidad:</span>
                                 <input type="number" class="mini-input" value="${img.copies}" min="1" max="50" 
                                     onchange="updateValue(${img.id}, 'copies', this.value)">
                             </div>
-                            <div>
-                                <label style="font-size:0.75rem; display:block;">Por Fila</label>
-                                <input type="number" class="mini-input" value="${img.cols}" min="1" max="10" 
-                                    onchange="updateValue(${img.id}, 'cols', this.value)">
+                            <div class="control-row switch-container">
+                                <span class="control-label">Tamaño máximo:</span>
+                                <label class="switch">
+                                    <input type="checkbox" ${img.maxSize ? 'checked' : ''} 
+                                        onchange="updateValue(${img.id}, 'maxSize', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
                             </div>
+                            ${maxSizeControls}
                         </div>
                     </div>
                     <button class="remove-btn" onclick="removeImage(${img.id})" title="Quitar">×</button>
@@ -439,27 +674,215 @@
             });
         }
 
-        // 2. Renderizar la Hoja de Impresión
-        function renderSheet() {
-            const sheet = document.getElementById('sheet');
-            sheet.innerHTML = '';
+        // Función auxiliar para cargar dimensiones de imagen
+        function loadImageDimensions(url) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    resolve({ width: img.width, height: img.height });
+                };
+                img.src = url;
+            });
+        }
 
-            imagesData.forEach(imgData => {
-                // Crear un contenedor Grid para este grupo de imágenes
-                const group = document.createElement('div');
-                group.className = 'image-group-grid';
-                // Configurar columnas
-                group.style.gridTemplateColumns = `repeat(${imgData.cols}, 1fr)`;
-                
-                // Generar las copias
-                for (let i = 0; i < imgData.copies; i++) {
-                    const imgEl = document.createElement('img');
-                    imgEl.src = imgData.url;
-                    imgEl.className = 'print-img';
-                    group.appendChild(imgEl);
+        // Renderizar las hojas con paginación automática
+        async function renderSheet() {
+            const container = document.getElementById('sheetsContainer');
+            container.innerHTML = '';
+
+            if (imagesData.length === 0) {
+                return;
+            }
+
+            const paperSize = sizes[currentPaperSize];
+            // Área disponible = tamaño total - padding * 2
+            const availableHeight = paperSize.h - (2 * PADDING_MM);
+            const availableWidth = paperSize.w - (2 * PADDING_MM);
+
+            let pages = []; // Array de páginas
+            let currentPage = { elements: [], currentHeight: 0 };
+
+            const GRID_GAP_MM = 2;
+
+            for (let imgData of imagesData) {
+                if (imgData.maxSize) {
+                    // Modo Grid: dividir por filas
+                    const totalRows = Math.ceil(imgData.copies / imgData.cols);
+
+                    // Cargar dimensiones reales de la imagen
+                    const imgDims = await loadImageDimensions(imgData.url);
+                    const aspectRatio = imgDims.height / imgDims.width;
+
+                    // Calcular ancho de cada celda
+                    const cellWidth = availableWidth / imgData.cols;
+                    const cellHeight = cellWidth * aspectRatio;
+
+                    // Altura de una fila (sin gap)
+                    const rowHeight = cellHeight;
+
+                    let currentRow = 0;
+                    let currentGridImages = [];
+
+                    // Procesar fila por fila
+                    while (currentRow < totalRows) {
+                        // Calcular cuántas imágenes quedan por procesar
+                        const imagesProcessed = currentRow * imgData.cols;
+                        const imagesRemaining = imgData.copies - imagesProcessed;
+                        const imagesInCurrentRow = Math.min(imgData.cols, imagesRemaining);
+
+                        // Verificar si la fila cabe en la página actual
+                        const needsGap = currentPage.currentHeight > 0 || currentGridImages.length > 0;
+                        const heightNeeded = rowHeight + (needsGap ? GRID_GAP_MM : 0);
+
+                        if (currentPage.currentHeight + heightNeeded > availableHeight) {
+                            // La fila no cabe en esta página
+
+                            // Si hay imágenes acumuladas en el grid actual, guardarlas primero
+                            if (currentGridImages.length > 0) {
+                                if (currentPage.currentHeight > 0) {
+                                    currentPage.currentHeight += GAP_MM;
+                                }
+                                currentPage.elements.push({
+                                    type: 'grid',
+                                    data: imgData,
+                                    images: currentGridImages,
+                                    cols: imgData.cols
+                                });
+                                currentGridImages = [];
+                            }
+
+                            // Crear nueva página
+                            pages.push(currentPage);
+                            currentPage = { elements: [], currentHeight: 0 };
+                        }
+
+                        // Agregar las imágenes de esta fila al grid actual
+                        for (let i = 0; i < imagesInCurrentRow; i++) {
+                            currentGridImages.push(imgData.url);
+                        }
+
+                        // Actualizar altura
+                        if (currentPage.currentHeight === 0 && currentGridImages.length === imagesInCurrentRow) {
+                            // Primera fila en página nueva
+                            currentPage.currentHeight = rowHeight;
+                        } else {
+                            currentPage.currentHeight += rowHeight + GRID_GAP_MM;
+                        }
+
+                        currentRow++;
+                    }
+
+                    // Guardar el grid acumulado si hay imágenes pendientes
+                    if (currentGridImages.length > 0) {
+                        currentPage.elements.push({
+                            type: 'grid',
+                            data: imgData,
+                            images: currentGridImages,
+                            cols: imgData.cols
+                        });
+                        currentGridImages = [];
+                    }
+
+                } else {
+                    // Modo Custom: cada imagen individualmente
+                    const sizeInMm = imgData.customValue * 10;
+
+                    // Cargar dimensiones reales
+                    const imgDims = await loadImageDimensions(imgData.url);
+                    let imgWidth, imgHeight;
+
+                    if (imgData.customDimension === 'width') {
+                        imgWidth = sizeInMm;
+                        imgHeight = sizeInMm * (imgDims.height / imgDims.width);
+                    } else {
+                        imgHeight = sizeInMm;
+                        imgWidth = sizeInMm * (imgDims.width / imgDims.height);
+                    }
+
+                    // Agregar cada copia
+                    for (let i = 0; i < imgData.copies; i++) {
+                        // Verificar si cabe en la página actual
+                        const needsGap = currentPage.currentHeight > 0;
+                        const heightNeeded = imgHeight + (needsGap ? GAP_MM : 0);
+
+                        if (currentPage.currentHeight + heightNeeded > availableHeight) {
+                            pages.push(currentPage);
+                            currentPage = { elements: [], currentHeight: 0 };
+                        }
+
+                        currentPage.elements.push({
+                            type: 'custom',
+                            data: imgData,
+                            width: imgWidth,
+                            height: imgHeight
+                        });
+
+                        // Actualizar altura actual
+                        if (currentPage.currentHeight > 0) {
+                            currentPage.currentHeight += GAP_MM;
+                        }
+                        currentPage.currentHeight += imgHeight;
+                    }
                 }
+            }
 
-                sheet.appendChild(group);
+            // Agregar la última página si tiene contenido
+            if (currentPage.elements.length > 0) {
+                pages.push(currentPage);
+            }
+
+            // Renderizar todas las páginas
+            pages.forEach((page, pageIndex) => {
+                const sheetDiv = document.createElement('div');
+                sheetDiv.className = 'sheet';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'sheet-content';
+
+                page.elements.forEach(element => {
+                    if (element.type === 'grid') {
+                        const group = document.createElement('div');
+                        group.className = 'image-group-grid';
+                        group.style.gridTemplateColumns = `repeat(${element.cols}, 1fr)`;
+
+                        element.images.forEach(url => {
+                            const imgEl = document.createElement('img');
+                            imgEl.src = url;
+                            imgEl.className = 'print-img';
+                            group.appendChild(imgEl);
+                        });
+
+                        contentDiv.appendChild(group);
+                    } else if (element.type === 'custom') {
+                        const group = document.createElement('div');
+                        group.className = 'image-group-custom';
+
+                        const imgEl = document.createElement('img');
+                        imgEl.src = element.data.url;
+                        imgEl.className = 'print-img-custom';
+
+                        if (element.data.customDimension === 'width') {
+                            imgEl.style.width = `${element.width}mm`;
+                            imgEl.style.height = 'auto';
+                        } else {
+                            imgEl.style.height = `${element.height}mm`;
+                            imgEl.style.width = 'auto';
+                        }
+
+                        group.appendChild(imgEl);
+                        contentDiv.appendChild(group);
+                    }
+                });
+
+                sheetDiv.appendChild(contentDiv);
+
+                // Agregar número de página
+                const pageNum = document.createElement('div');
+                pageNum.className = 'page-number';
+                pageNum.textContent = `Página ${pageIndex + 1} de ${pages.length}`;
+                sheetDiv.appendChild(pageNum);
+
+                container.appendChild(sheetDiv);
             });
         }
 
@@ -467,4 +890,5 @@
         updateSheetSize();
     </script>
 </body>
+
 </html>
