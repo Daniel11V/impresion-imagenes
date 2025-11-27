@@ -294,6 +294,7 @@
             padding: 2rem;
             display: flex;
             flex-direction: column;
+            gap: 1rem;
         }
 
         .sheet {
@@ -530,7 +531,8 @@
         };
 
         const PADDING_MM = 5; // Margen interno (debe coincidir con padding en .sheet-content)
-        const GAP_MM = 3; // Gap entre grupos (debe coincidir con gap en .sheet-content)
+        const GAP_MM = 3; // Gap vertical entre filas
+        const ROW_GAP_MM = 2; // Gap horizontal entre imágenes
 
         function updateSheetSize() {
             currentPaperSize = document.getElementById('paperSize').value;
@@ -695,99 +697,96 @@
             }
 
             const paperSize = sizes[currentPaperSize];
-            // Área disponible = tamaño total - padding * 2
             const availableHeight = paperSize.h - (2 * PADDING_MM);
             const availableWidth = paperSize.w - (2 * PADDING_MM);
 
-            let pages = []; // Array de páginas
+            let pages = [];
             let currentPage = { elements: [], currentHeight: 0 };
+            let currentRowImages = [];
+            let currentRowWidth = 0;
+            let currentRowMaxHeight = 0;
 
-            const GRID_GAP_MM = 2;
+            const TOLERANCE_MM = 0.05;
+
+            // --- NUEVA LÓGICA DE CONTROL DE FLUJO Y PAGINACIÓN ---
+
+            // Función auxiliar para verificar si una altura adicional cabe en la página actual
+            function rowFitsInPage(rowHeight) {
+                const needsGap = currentPage.currentHeight > 0;
+                const heightNeeded = rowHeight + (needsGap ? GAP_MM : 0);
+                return currentPage.currentHeight + heightNeeded <= availableHeight + TOLERANCE_MM;
+            }
+
+            // Función centralizada para "volcar" la fila pendiente a una página
+            function flushRow() {
+                if (currentRowImages.length === 0) return;
+
+                // 1. Verificar si la fila cabe verticalmente en la página actual
+                if (!rowFitsInPage(currentRowMaxHeight)) {
+                    // Si NO cabe, cerramos la página actual y empezamos una nueva
+                    pages.push(currentPage);
+                    currentPage = { elements: [], currentHeight: 0 };
+                }
+
+                // 2. Añadir la fila a la página actual (que puede ser nueva o vieja)
+                if (currentPage.currentHeight > 0) {
+                    currentPage.currentHeight += GAP_MM;
+                }
+
+                currentPage.elements.push({
+                    type: 'mixed-row',
+                    images: currentRowImages,
+                    height: currentRowMaxHeight
+                });
+
+                currentPage.currentHeight += currentRowMaxHeight;
+
+                // 3. Limpiar buffers
+                currentRowImages = [];
+                currentRowWidth = 0;
+                currentRowMaxHeight = 0;
+            }
 
             for (let imgData of imagesData) {
                 if (imgData.maxSize) {
-                    // Modo Grid: dividir por filas
-                    const totalRows = Math.ceil(imgData.copies / imgData.cols);
+                    // Modo Grid
+                    const totalGapsWidth = (imgData.cols - 1) * ROW_GAP_MM;
+                    const availableForImages = availableWidth - totalGapsWidth;
+                    const cellWidth = availableForImages / imgData.cols;
 
-                    // Cargar dimensiones reales de la imagen
                     const imgDims = await loadImageDimensions(imgData.url);
                     const aspectRatio = imgDims.height / imgDims.width;
-
-                    // Calcular ancho de cada celda
-                    const cellWidth = availableWidth / imgData.cols;
                     const cellHeight = cellWidth * aspectRatio;
 
-                    // Altura de una fila (sin gap)
-                    const rowHeight = cellHeight;
+                    for (let i = 0; i < imgData.copies; i++) {
+                        let projectedWidth = currentRowWidth;
+                        if (currentRowImages.length > 0) {
+                            projectedWidth += ROW_GAP_MM;
+                        }
+                        projectedWidth += cellWidth;
 
-                    let currentRow = 0;
-                    let currentGridImages = [];
-
-                    // Procesar fila por fila
-                    while (currentRow < totalRows) {
-                        // Calcular cuántas imágenes quedan por procesar
-                        const imagesProcessed = currentRow * imgData.cols;
-                        const imagesRemaining = imgData.copies - imagesProcessed;
-                        const imagesInCurrentRow = Math.min(imgData.cols, imagesRemaining);
-
-                        // Verificar si la fila cabe en la página actual
-                        const needsGap = currentPage.currentHeight > 0 || currentGridImages.length > 0;
-                        const heightNeeded = rowHeight + (needsGap ? GRID_GAP_MM : 0);
-
-                        if (currentPage.currentHeight + heightNeeded > availableHeight) {
-                            // La fila no cabe en esta página
-
-                            // Si hay imágenes acumuladas en el grid actual, guardarlas primero
-                            if (currentGridImages.length > 0) {
-                                if (currentPage.currentHeight > 0) {
-                                    currentPage.currentHeight += GAP_MM;
-                                }
-                                currentPage.elements.push({
-                                    type: 'grid',
-                                    data: imgData,
-                                    images: currentGridImages,
-                                    cols: imgData.cols
-                                });
-                                currentGridImages = [];
-                            }
-
-                            // Crear nueva página
-                            pages.push(currentPage);
-                            currentPage = { elements: [], currentHeight: 0 };
+                        // Si la fila se llena horizontalmente, la volcamos
+                        if (projectedWidth > availableWidth + TOLERANCE_MM && currentRowImages.length > 0) {
+                            flushRow(); // Esto ahora maneja el salto de página automáticamente si hace falta
                         }
 
-                        // Agregar las imágenes de esta fila al grid actual
-                        for (let i = 0; i < imagesInCurrentRow; i++) {
-                            currentGridImages.push(imgData.url);
-                        }
-
-                        // Actualizar altura
-                        if (currentPage.currentHeight === 0 && currentGridImages.length === imagesInCurrentRow) {
-                            // Primera fila en página nueva
-                            currentPage.currentHeight = rowHeight;
-                        } else {
-                            currentPage.currentHeight += rowHeight + GRID_GAP_MM;
-                        }
-
-                        currentRow++;
-                    }
-
-                    // Guardar el grid acumulado si hay imágenes pendientes
-                    if (currentGridImages.length > 0) {
-                        currentPage.elements.push({
-                            type: 'grid',
-                            data: imgData,
-                            images: currentGridImages,
-                            cols: imgData.cols
+                        // Añadir a buffer
+                        currentRowImages.push({
+                            url: imgData.url,
+                            width: cellWidth,
+                            height: cellHeight
                         });
-                        currentGridImages = [];
+
+                        if (currentRowWidth > 0) {
+                            currentRowWidth += ROW_GAP_MM;
+                        }
+                        currentRowWidth += cellWidth;
+                        currentRowMaxHeight = Math.max(currentRowMaxHeight, cellHeight);
                     }
 
                 } else {
-                    // Modo Custom: cada imagen individualmente
+                    // Modo Custom
                     const sizeInMm = imgData.customValue * 10;
-
-                    // Cargar dimensiones reales
                     const imgDims = await loadImageDimensions(imgData.url);
                     let imgWidth, imgHeight;
 
@@ -799,39 +798,41 @@
                         imgWidth = sizeInMm * (imgDims.width / imgDims.height);
                     }
 
-                    // Agregar cada copia
                     for (let i = 0; i < imgData.copies; i++) {
-                        // Verificar si cabe en la página actual
-                        const needsGap = currentPage.currentHeight > 0;
-                        const heightNeeded = imgHeight + (needsGap ? GAP_MM : 0);
+                        let projectedWidth = currentRowWidth;
+                        if (currentRowImages.length > 0) {
+                            projectedWidth += ROW_GAP_MM;
+                        }
+                        projectedWidth += imgWidth;
 
-                        if (currentPage.currentHeight + heightNeeded > availableHeight) {
-                            pages.push(currentPage);
-                            currentPage = { elements: [], currentHeight: 0 };
+                        if (projectedWidth > availableWidth + TOLERANCE_MM && currentRowImages.length > 0) {
+                            flushRow();
                         }
 
-                        currentPage.elements.push({
-                            type: 'custom',
-                            data: imgData,
+                        currentRowImages.push({
+                            url: imgData.url,
                             width: imgWidth,
                             height: imgHeight
                         });
 
-                        // Actualizar altura actual
-                        if (currentPage.currentHeight > 0) {
-                            currentPage.currentHeight += GAP_MM;
+                        if (currentRowWidth > 0) {
+                            currentRowWidth += ROW_GAP_MM;
                         }
-                        currentPage.currentHeight += imgHeight;
+                        currentRowWidth += imgWidth;
+                        currentRowMaxHeight = Math.max(currentRowMaxHeight, imgHeight);
                     }
                 }
             }
 
-            // Agregar la última página si tiene contenido
+            // Volcar cualquier fila pendiente al final de todo el proceso
+            flushRow();
+
+            // Si quedó contenido en la página actual, guardarla
             if (currentPage.elements.length > 0) {
                 pages.push(currentPage);
             }
 
-            // Renderizar todas las páginas
+            // Renderizar DOM
             pages.forEach((page, pageIndex) => {
                 const sheetDiv = document.createElement('div');
                 sheetDiv.className = 'sheet';
@@ -840,43 +841,32 @@
                 contentDiv.className = 'sheet-content';
 
                 page.elements.forEach(element => {
-                    if (element.type === 'grid') {
-                        const group = document.createElement('div');
-                        group.className = 'image-group-grid';
-                        group.style.gridTemplateColumns = `repeat(${element.cols}, 1fr)`;
+                    if (element.type === 'mixed-row') {
+                        const rowDiv = document.createElement('div');
+                        rowDiv.className = 'image-row-mixed';
+                        rowDiv.style.display = 'flex';
+                        rowDiv.style.gap = `${ROW_GAP_MM}mm`;
+                        rowDiv.style.alignItems = 'flex-start';
+                        rowDiv.style.width = '100%';
+                        rowDiv.style.flexWrap = 'nowrap';
 
-                        element.images.forEach(url => {
+                        element.images.forEach(img => {
                             const imgEl = document.createElement('img');
-                            imgEl.src = url;
-                            imgEl.className = 'print-img';
-                            group.appendChild(imgEl);
+                            imgEl.src = img.url;
+                            imgEl.style.width = `${img.width}mm`;
+                            imgEl.style.height = `${img.height}mm`;
+                            imgEl.style.objectFit = 'contain';
+                            imgEl.style.display = 'block';
+                            imgEl.style.flexShrink = '0';
+                            rowDiv.appendChild(imgEl);
                         });
 
-                        contentDiv.appendChild(group);
-                    } else if (element.type === 'custom') {
-                        const group = document.createElement('div');
-                        group.className = 'image-group-custom';
-
-                        const imgEl = document.createElement('img');
-                        imgEl.src = element.data.url;
-                        imgEl.className = 'print-img-custom';
-
-                        if (element.data.customDimension === 'width') {
-                            imgEl.style.width = `${element.width}mm`;
-                            imgEl.style.height = 'auto';
-                        } else {
-                            imgEl.style.height = `${element.height}mm`;
-                            imgEl.style.width = 'auto';
-                        }
-
-                        group.appendChild(imgEl);
-                        contentDiv.appendChild(group);
+                        contentDiv.appendChild(rowDiv);
                     }
                 });
 
                 sheetDiv.appendChild(contentDiv);
 
-                // Agregar número de página
                 const pageNum = document.createElement('div');
                 pageNum.className = 'page-number';
                 pageNum.textContent = `Página ${pageIndex + 1} de ${pages.length}`;
@@ -886,7 +876,6 @@
             });
         }
 
-        // Iniciar
         updateSheetSize();
     </script>
 </body>
