@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador Multi-Imagen</title>
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --primary-color: #2563eb;
+            --danger-color: #dc2626;
+            --text-color: #1f2937;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- CONTROLES --- */
+        .controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 900px;
+            box-sizing: border-box;
+        }
+
+        .header-row {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+
+        select, .file-btn {
+            padding: 0.6rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            background: white;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .file-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-wrapper input[type=file] {
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .file-btn {
+            background: #eff6ff;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Lista de Imágenes */
+        .image-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .list-item {
+            display: flex;
+            gap: 1rem;
+            background: #f9fafb;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .item-info {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .item-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .mini-input {
+            width: 70px;
+            padding: 0.4rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 0.5rem;
+        }
+
+        /* --- BOTÓN IMPRIMIR --- */
+        .print-row {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        .btn-print {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+            transition: transform 0.1s;
+        }
+
+        .btn-print:active {
+            transform: scale(0.98);
+        }
+
+        .btn-print:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* --- HOJA DE IMPRESIÓN --- */
+        .sheet-container {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+            margin-bottom: 2rem;
+            overflow: auto;
+            max-width: 100%;
+            background: #525252; /* Fondo oscuro para resaltar la hoja */
+            padding: 2rem;
+            border-radius: 8px;
+        }
+
+        .sheet {
+            background: white;
+            margin: 0 auto;
+            padding: 10mm; /* Margen seguro */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* Apilar arriba */
+            gap: 5mm; /* Espacio vertical entre grupos de imágenes diferentes */
+            overflow: hidden; /* Cortar lo que sobre */
+        }
+
+        /* Contenedor de GRUPO de una misma imagen */
+        .image-group-grid {
+            display: grid;
+            width: 100%;
+            gap: 2mm; /* Espacio pequeño entre copias de la misma imagen */
+            /* Las columnas se definen inline con style */
+        }
+
+        .print-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            /* Para que no se estiren feo, mantienen su ratio */
+            object-fit: contain; 
+        }
+
+        /* --- ESTILOS DE IMPRESIÓN --- */
+        @media print {
+            @page {
+                margin: 0;
+            }
+
+            body {
+                background: white;
+                margin: 0;
+                padding: 0;
+                display: block;
+            }
+
+            .controls, .sheet-container {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                background: none;
+                width: 100%;
+                max-width: none;
+            }
+
+            .controls {
+                display: none !important;
+            }
+
+            .sheet-container {
+                overflow: visible;
+            }
+
+            .sheet {
+                width: 100% !important;
+                height: 100vh; /* Altura completa */
+                page-break-after: always;
+            }
+        }
+    </style>
+    <style id="dynamic-page-style">
+        @page { size: A4 portrait; }
+        .sheet { width: 210mm; min-height: 297mm; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div class="header-row">
+            <!-- 1. Tamaño de Hoja -->
+            <div class="input-group" style="flex: 0 0 200px;">
+                <label>1. Tamaño de Hoja</label>
+                <select id="paperSize" onchange="updateSheetSize()">
+                    <option value="a4">A4</option>
+                    <option value="letter">Carta (Letter)</option>
+                    <option value="legal">Oficio (Legal)</option>
+                </select>
+            </div>
+
+            <!-- 2. Cargar Imágenes -->
+            <div class="input-group">
+                <label>2. Agregar Imágenes (Selecciona varias)</label>
+                <div class="file-wrapper">
+                    <button class="file-btn">📂 Cargar Archivos...</button>
+                    <!-- "multiple" permite elegir varios archivos -->
+                    <input type="file" id="filesInput" accept="image/*" multiple onchange="handleFiles(this)">
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Imágenes Configurables -->
+        <label style="margin-bottom:0.5rem; display:block;">3. Configurar Imágenes:</label>
+        <div id="imageList" class="image-list">
+            <div style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">
+                No hay imágenes cargadas.
+            </div>
+        </div>
+
+        <div class="print-row">
+            <button id="printBtn" class="btn-print" onclick="handlePrint()">🖨️ IMPRIMIR AHORA</button>
+        </div>
+    </div>
+
+    <div class="sheet-container">
+        <div id="sheet" class="sheet">
+            <!-- Las imágenes se renderizan aquí -->
+        </div>
+    </div>
+
+    <script>
+        // Estado global
+        let imagesData = []; 
+        /* Estructura de imagesData:
+           {
+               id: timestamp,
+               file: FileObject,
+               url: DataURL,
+               name: string,
+               copies: 4, (default)
+               cols: 2    (default)
+           }
+        */
+
+        const sizes = {
+            a4: { w: '210mm', h: '297mm' },
+            letter: { w: '215.9mm', h: '279.4mm' },
+            legal: { w: '215.9mm', h: '355.6mm' }
+        };
+
+        function updateSheetSize() {
+            const sizeKey = document.getElementById('paperSize').value;
+            const s = sizes[sizeKey];
+            document.getElementById('dynamic-page-style').innerHTML = `
+                @page { size: ${sizeKey} portrait; margin: 0; }
+                .sheet { width: ${s.w}; min-height: ${s.h}; }
+            `;
+        }
+
+        // Función para manejar la impresión
+        function handlePrint() {
+            if (imagesData.length === 0) {
+                alert('Por favor, carga al menos una imagen antes de imprimir.');
+                return;
+            }
+
+            // Dar un pequeño delay para asegurar que el render esté completo
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        }
+
+        // Manejar subida de archivos
+        function handleFiles(input) {
+            if (!input.files || input.files.length === 0) return;
+
+            Array.from(input.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Agregar al estado
+                    imagesData.push({
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        url: e.target.result,
+                        copies: 4,
+                        cols: 2
+                    });
+                    renderUI(); // Actualizar lista y hoja
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            // Limpiar input para permitir subir lo mismo de nuevo si se quiere
+            input.value = '';
+        }
+
+        // Eliminar imagen
+        function removeImage(id) {
+            imagesData = imagesData.filter(img => img.id !== id);
+            renderUI();
+        }
+
+        // Actualizar valores (copias o columnas)
+        function updateValue(id, field, value) {
+            const img = imagesData.find(i => i.id === id);
+            if (img) {
+                img[field] = parseInt(value) || 1;
+                renderSheet(); // Solo repintar hoja, no la lista entera para no perder foco
+            }
+        }
+
+        // Renderizar todo (Lista de controles + Hoja)
+        function renderUI() {
+            renderList();
+            renderSheet();
+        }
+
+        // 1. Renderizar Lista de Controles
+        function renderList() {
+            const container = document.getElementById('imageList');
+            container.innerHTML = '';
+
+            if (imagesData.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">No hay imágenes cargadas.</div>`;
+                return;
+            }
+
+            imagesData.forEach(img => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <img src="${img.url}" class="thumb">
+                    <div class="item-info">
+                        <div class="item-name" title="${img.name}">${img.name}</div>
+                        <div class="item-controls">
+                            <div>
+                                <label style="font-size:0.75rem; display:block;">Cant.</label>
+                                <input type="number" class="mini-input" value="${img.copies}" min="1" max="50" 
+                                    onchange="updateValue(${img.id}, 'copies', this.value)">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; display:block;">Por Fila</label>
+                                <input type="number" class="mini-input" value="${img.cols}" min="1" max="10" 
+                                    onchange="updateValue(${img.id}, 'cols', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                    <button class="remove-btn" onclick="removeImage(${img.id})" title="Quitar">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // 2. Renderizar la Hoja de Impresión
+        function renderSheet() {
+            const sheet = document.getElementById('sheet');
+            sheet.innerHTML = '';
+
+            imagesData.forEach(imgData => {
+                // Crear un contenedor Grid para este grupo de imágenes
+                const group = document.createElement('div');
+                group.className = 'image-group-grid';
+                // Configurar columnas
+                group.style.gridTemplateColumns = `repeat(${imgData.cols}, 1fr)`;
+                
+                // Generar las copias
+                for (let i = 0; i < imgData.copies; i++) {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = imgData.url;
+                    imgEl.className = 'print-img';
+                    group.appendChild(imgEl);
+                }
+
+                sheet.appendChild(group);
+            });
+        }
+
+        // Iniciar
+        updateSheetSize();
+    </script>
+</body>
+</html>
