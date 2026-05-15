@@ -176,6 +176,31 @@
             font-size: 0.9rem;
         }
 
+        .rotate-btn {
+            padding: 0.35rem 0.6rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            background: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: background 0.15s;
+        }
+
+        .rotate-btn:hover {
+            background: #eff6ff;
+            border-color: var(--primary-color);
+        }
+
+        .rotate-btn .rot-icon {
+            font-size: 1.05rem;
+            line-height: 1;
+        }
+
         .small-select {
             width: 90px;
             padding: 0.4rem;
@@ -578,7 +603,8 @@
                         maxSize: true,
                         cols: 2,
                         customDimension: 'width',
-                        customValue: 5.00
+                        customValue: 5.00,
+                        rotation: 0
                     });
                     renderUI();
                 };
@@ -591,6 +617,14 @@
         function removeImage(id) {
             imagesData = imagesData.filter(img => img.id !== id);
             renderUI();
+        }
+
+        function rotateImage(id) {
+            const img = imagesData.find(i => i.id === id);
+            if (img) {
+                img.rotation = (img.rotation + 90) % 360;
+                renderUI();
+            }
         }
 
         function updateValue(id, field, value) {
@@ -650,24 +684,30 @@
                 `;
 
                 div.innerHTML = `
-                    <img src="${img.url}" class="thumb">
+                    <img src="${img.url}" class="thumb" style="transform: rotate(${img.rotation}deg);">
                     <div class="item-info">
                         <div class="item-name" title="${img.name}">${img.name}</div>
                         <div class="item-controls">
                             <div class="control-row">
                                 <span class="control-label">Cantidad:</span>
-                                <input type="number" class="mini-input" value="${img.copies}" min="1" max="50" 
+                                <input type="number" class="mini-input" value="${img.copies}" min="1" max="50"
                                     onchange="updateValue(${img.id}, 'copies', this.value)">
                             </div>
                             <div class="control-row switch-container">
                                 <span class="control-label">Tamaño máximo:</span>
                                 <label class="switch">
-                                    <input type="checkbox" ${img.maxSize ? 'checked' : ''} 
+                                    <input type="checkbox" ${img.maxSize ? 'checked' : ''}
                                         onchange="updateValue(${img.id}, 'maxSize', this.checked)">
                                     <span class="slider"></span>
                                 </label>
                             </div>
                             ${maxSizeControls}
+                            <div class="control-row">
+                                <span class="control-label">Rotar:</span>
+                                <button type="button" class="rotate-btn" onclick="rotateImage(${img.id})" title="Rotar 90° a la derecha">
+                                    <span class="rot-icon">↻</span> ${img.rotation}°
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <button class="remove-btn" onclick="removeImage(${img.id})" title="Quitar">×</button>
@@ -748,15 +788,20 @@
             }
 
             for (let imgData of imagesData) {
+                const rotation = imgData.rotation || 0;
+                const isSideways = rotation % 180 !== 0;
+                const imgDims = await loadImageDimensions(imgData.url);
+                // Aspect ratio (alto/ancho) tal como queda en la hoja despues de rotar
+                const displayedAspect = isSideways
+                    ? imgDims.width / imgDims.height
+                    : imgDims.height / imgDims.width;
+
                 if (imgData.maxSize) {
                     // Modo Grid
                     const totalGapsWidth = (imgData.cols - 1) * ROW_GAP_MM;
                     const availableForImages = availableWidth - totalGapsWidth;
                     const cellWidth = availableForImages / imgData.cols;
-
-                    const imgDims = await loadImageDimensions(imgData.url);
-                    const aspectRatio = imgDims.height / imgDims.width;
-                    const cellHeight = cellWidth * aspectRatio;
+                    const cellHeight = cellWidth * displayedAspect;
 
                     for (let i = 0; i < imgData.copies; i++) {
                         let projectedWidth = currentRowWidth;
@@ -774,7 +819,8 @@
                         currentRowImages.push({
                             url: imgData.url,
                             width: cellWidth,
-                            height: cellHeight
+                            height: cellHeight,
+                            rotation: rotation
                         });
 
                         if (currentRowWidth > 0) {
@@ -787,15 +833,14 @@
                 } else {
                     // Modo Custom
                     const sizeInMm = imgData.customValue * 10;
-                    const imgDims = await loadImageDimensions(imgData.url);
                     let imgWidth, imgHeight;
 
                     if (imgData.customDimension === 'width') {
                         imgWidth = sizeInMm;
-                        imgHeight = sizeInMm * (imgDims.height / imgDims.width);
+                        imgHeight = sizeInMm * displayedAspect;
                     } else {
                         imgHeight = sizeInMm;
-                        imgWidth = sizeInMm * (imgDims.width / imgDims.height);
+                        imgWidth = sizeInMm / displayedAspect;
                     }
 
                     for (let i = 0; i < imgData.copies; i++) {
@@ -812,7 +857,8 @@
                         currentRowImages.push({
                             url: imgData.url,
                             width: imgWidth,
-                            height: imgHeight
+                            height: imgHeight,
+                            rotation: rotation
                         });
 
                         if (currentRowWidth > 0) {
@@ -851,14 +897,38 @@
                         rowDiv.style.flexWrap = 'nowrap';
 
                         element.images.forEach(img => {
+                            const rotation = img.rotation || 0;
+                            const isSideways = rotation % 180 !== 0;
+
+                            // Wrapper con el tamaño final que ocupa en la hoja
+                            const wrapper = document.createElement('div');
+                            wrapper.style.width = `${img.width}mm`;
+                            wrapper.style.height = `${img.height}mm`;
+                            wrapper.style.flexShrink = '0';
+                            wrapper.style.display = 'flex';
+                            wrapper.style.alignItems = 'center';
+                            wrapper.style.justifyContent = 'center';
+                            wrapper.style.overflow = 'hidden';
+
                             const imgEl = document.createElement('img');
                             imgEl.src = img.url;
-                            imgEl.style.width = `${img.width}mm`;
-                            imgEl.style.height = `${img.height}mm`;
+                            // Cuando esta de costado, el <img> usa ancho/alto intercambiados
+                            // para que despues de rotar 90/270 su bounding box coincida con el wrapper
+                            if (isSideways) {
+                                imgEl.style.width = `${img.height}mm`;
+                                imgEl.style.height = `${img.width}mm`;
+                            } else {
+                                imgEl.style.width = `${img.width}mm`;
+                                imgEl.style.height = `${img.height}mm`;
+                            }
                             imgEl.style.objectFit = 'contain';
                             imgEl.style.display = 'block';
-                            imgEl.style.flexShrink = '0';
-                            rowDiv.appendChild(imgEl);
+                            if (rotation !== 0) {
+                                imgEl.style.transform = `rotate(${rotation}deg)`;
+                            }
+
+                            wrapper.appendChild(imgEl);
+                            rowDiv.appendChild(wrapper);
                         });
 
                         contentDiv.appendChild(rowDiv);
