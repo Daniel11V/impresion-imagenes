@@ -392,6 +392,56 @@
             object-fit: contain;
         }
 
+        /* --- UNA IMAGEN GRANDE (cartel en varias hojas) --- */
+        .sheets-container.modo-cartel {
+            width: 100%;
+            max-width: 1200px;
+            box-sizing: border-box;
+        }
+
+        .cartel-escala {
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        .cartel-grid {
+            display: grid;
+            transform-origin: top left;
+        }
+
+        .sheet-cartel {
+            background: white;
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .pieza {
+            position: absolute;
+            overflow: hidden;
+        }
+
+        .lienzo {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .lienzo img {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            display: block;
+            max-width: none;
+        }
+
+        .cortes {
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+        }
+
         /* --- RESPONSIVE MOBILE --- */
         @media (max-width: 768px) {
             body {
@@ -492,6 +542,32 @@
 
             .page-number {
                 display: none;
+            }
+
+            .sheets-container.modo-cartel {
+                max-width: none;
+            }
+
+            .cartel-escala {
+                width: auto !important;
+                height: auto !important;
+                overflow: visible;
+            }
+
+            .cartel-grid {
+                display: block !important;
+                transform: none !important;
+            }
+
+            .sheet-cartel {
+                width: 100% !important;
+                height: 100vh !important;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+
+            .sheet-cartel:last-child {
+                page-break-after: auto;
             }
         }
     </style>
@@ -913,6 +989,14 @@
         async function renderSheet() {
             const container = document.getElementById('sheetsContainer');
             container.innerHTML = '';
+            container.classList.toggle('modo-cartel', herramienta === 'grande');
+
+            if (herramienta === 'grande') {
+                renderCartel();
+                return;
+            }
+
+            aplicarEstiloDePagina('portrait');
 
             if (imagesData.length === 0) {
                 return;
@@ -1127,6 +1211,112 @@
                 container.appendChild(sheetDiv);
             });
         }
+
+        // Una imagen grande: una hoja por pedazo, acomodadas en la vista previa como quedan armadas
+        function renderCartel() {
+            const container = document.getElementById('sheetsContainer');
+            container.innerHTML = '';
+
+            if (!imagenGrande) {
+                aplicarEstiloDePagina('portrait');
+                return;
+            }
+
+            const g = imagenGrande;
+            const cartel = cartelActual();
+            const { paginaMm, hojas } = Cartel.partirEnHojas(cartel, currentPaperSize);
+            aplicarEstiloDePagina(cartel.orientacion === 'horizontal' ? 'landscape' : 'portrait');
+
+            // Escala de la vista previa: la grilla entera entra en el ancho disponible
+            const estilo = getComputedStyle(container);
+            const disponible = container.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight);
+            const anchoHojasPx = cartel.cols * paginaMm.w * PX_POR_MM;
+            const altoHojasPx = cartel.filas * paginaMm.h * PX_POR_MM;
+            const escala = Math.min(1, (disponible - (cartel.cols - 1) * HUECO_PX) / anchoHojasPx);
+            const hueco = HUECO_PX / escala; // sin escalar, para que se vea de HUECO_PX
+
+            const escalaDiv = document.createElement('div');
+            escalaDiv.className = 'cartel-escala';
+            escalaDiv.style.width = `${(anchoHojasPx + (cartel.cols - 1) * hueco) * escala}px`;
+            escalaDiv.style.height = `${(altoHojasPx + (cartel.filas - 1) * hueco) * escala}px`;
+
+            const grid = document.createElement('div');
+            grid.className = 'cartel-grid';
+            grid.style.gridTemplateColumns = `repeat(${cartel.cols}, ${paginaMm.w}mm)`;
+            grid.style.gap = `${hueco}px`;
+            grid.style.transform = `scale(${escala})`;
+
+            const deCostado = g.rotation % 180 !== 0;
+            hojas.forEach(h => {
+                const hoja = document.createElement('div');
+                hoja.className = 'sheet-cartel';
+                hoja.style.width = `${paginaMm.w}mm`;
+                hoja.style.height = `${paginaMm.h}mm`;
+
+                // La pieza muestra sólo su recorte de la imagen entera
+                const pieza = document.createElement('div');
+                pieza.className = 'pieza';
+                pieza.style.left = `${h.left}mm`;
+                pieza.style.top = `${h.top}mm`;
+                pieza.style.width = `${h.recorte.w}mm`;
+                pieza.style.height = `${h.recorte.h}mm`;
+
+                const lienzo = document.createElement('div');
+                lienzo.className = 'lienzo';
+                lienzo.style.width = `${cartel.anchoMm}mm`;
+                lienzo.style.height = `${cartel.altoMm}mm`;
+                lienzo.style.transform = `translate(${-h.recorte.x}mm, ${-h.recorte.y}mm)`;
+
+                // De costado, el <img> usa ancho/alto intercambiados para que rotado ocupe el lienzo
+                const img = document.createElement('img');
+                img.src = g.url;
+                img.style.width = `${deCostado ? cartel.altoMm : cartel.anchoMm}mm`;
+                img.style.height = `${deCostado ? cartel.anchoMm : cartel.altoMm}mm`;
+                img.style.transform = `translate(-50%, -50%) rotate(${g.rotation}deg)`;
+
+                lienzo.appendChild(img);
+                pieza.appendChild(lienzo);
+                hoja.appendChild(pieza);
+                hoja.appendChild(dibujarLineasDeCorte(h, paginaMm));
+                grid.appendChild(hoja);
+            });
+
+            escalaDiv.appendChild(grid);
+            container.appendChild(escalaDiv);
+        }
+
+        // SVG y no bordes de CSS: los trazos SVG se imprimen siempre, los fondos no
+        function dibujarLineasDeCorte(hoja, paginaMm) {
+            const NS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(NS, 'svg');
+            svg.setAttribute('class', 'cortes');
+            svg.setAttribute('viewBox', `0 0 ${paginaMm.w} ${paginaMm.h}`);
+            svg.setAttribute('width', `${paginaMm.w}mm`);
+            svg.setAttribute('height', `${paginaMm.h}mm`);
+            Cartel.lineasDeCorte(hoja, paginaMm).forEach(l => {
+                const linea = document.createElementNS(NS, 'line');
+                linea.setAttribute('x1', l.x1);
+                linea.setAttribute('y1', l.y1);
+                linea.setAttribute('x2', l.x2);
+                linea.setAttribute('y2', l.y2);
+                linea.setAttribute('stroke', '#000');
+                linea.setAttribute('stroke-width', Cartel.GROSOR_CORTE_MM);
+                linea.setAttribute('stroke-dasharray', Cartel.TRAZO_CORTE);
+                svg.appendChild(linea);
+            });
+            return svg;
+        }
+
+        // La escala de la vista previa depende del ancho: se recalcula, salvo mientras se imprime
+        let imprimiendo = false;
+        let esperaResize = null;
+        window.addEventListener('beforeprint', () => { imprimiendo = true; });
+        window.addEventListener('afterprint', () => { imprimiendo = false; });
+        window.addEventListener('resize', () => {
+            if (herramienta !== 'grande' || imprimiendo) return;
+            clearTimeout(esperaResize);
+            esperaResize = setTimeout(renderCartel, 150);
+        });
 
         updateSheetSize();
     </script>
