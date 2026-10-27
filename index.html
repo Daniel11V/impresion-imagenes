@@ -491,6 +491,8 @@
                 margin: 0;
                 padding: 0;
                 display: block;
+                /* El min-height: 100vh de pantalla, en Firefox, al imprimir puede sumar una hoja en blanco. */
+                min-height: 0;
             }
 
             .controls {
@@ -508,9 +510,10 @@
                 display: block;
             }
 
+            /* El tamaño de la hoja al imprimir lo pone aplicarEstiloDePagina(), en mm. NO con vh:
+               Firefox, en la vista previa y en lo que imprime desde ese diálogo, no toma 100vh como el
+               alto de la página (lo toma de otra medida) y la hoja salía cortada por la mitad. */
             .sheet {
-                width: 100% !important;
-                height: 100vh !important;
                 page-break-after: always;
                 page-break-inside: avoid;
                 transform: none !important;
@@ -545,9 +548,8 @@
                 transform: none !important;
             }
 
+            /* Su tamaño en mm ya viene en el style de cada hoja (renderCartel). Sin vh: ver .sheet. */
             .sheet-cartel {
-                width: 100% !important;
-                height: 100vh !important;
                 page-break-after: always;
                 page-break-inside: avoid;
             }
@@ -665,6 +667,9 @@
                     .sheet {
                         aspect-ratio: ${s.w} / ${s.h};
                     }
+                }
+                @media print {
+                    .sheet { width: ${s.wStr} !important; height: ${s.hStr} !important; }
                 }
             `;
         }
