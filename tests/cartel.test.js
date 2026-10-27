@@ -147,6 +147,26 @@ test('líneas de corte: pegadas por fuera del pedazo y de borde a borde del pape
     cerca(abajoDer[1].y1, 48.5 - d); // arriba
 });
 
+test('colocación: rotada y centrada, la imagen ocupa exactamente el cartel', () => {
+    const cartel = { anchoMm: 300, altoMm: 200 };
+    for (const rotacion of [0, 90, 180, 270]) {
+        const c = Cartel.colocacionDeImagen(cartel, rotacion);
+        const deCostado = rotacion % 180 !== 0;
+        // el <image> lleva las medidas de la imagen sin rotar
+        assert.deepEqual([c.width, c.height], deCostado ? [200, 300] : [300, 200]);
+        // aplicar translate(tx ty) rotate(r) a sus esquinas tiene que dar el rectángulo del cartel
+        const rad = rotacion * Math.PI / 180;
+        const xs = [], ys = [];
+        for (const [x, y] of [[c.x, c.y], [c.x + c.width, c.y], [c.x, c.y + c.height], [c.x + c.width, c.y + c.height]]) {
+            xs.push(c.tx + x * Math.cos(rad) - y * Math.sin(rad));
+            ys.push(c.ty + x * Math.sin(rad) + y * Math.cos(rad));
+        }
+        cerca(Math.min(...xs), 0); cerca(Math.max(...xs), 300);
+        cerca(Math.min(...ys), 0); cerca(Math.max(...ys), 200);
+        assert.equal(c.transform, `translate(${c.tx} ${c.ty}) rotate(${rotacion})`);
+    }
+});
+
 test('describir: cantidad, grilla y medida en cm con coma', () => {
     assert.equal(Cartel.describirCartel({ hojas: 4, cols: 2, filas: 2, anchoMm: 574, altoMm: 308.94 }),
         '4 hojas (2 × 2) · 57,4 × 30,9 cm');

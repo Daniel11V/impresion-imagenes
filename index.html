@@ -421,20 +421,6 @@
             overflow: hidden;
         }
 
-        .lienzo {
-            position: absolute;
-            left: 0;
-            top: 0;
-        }
-
-        .lienzo img {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            display: block;
-            max-width: none;
-        }
-
         .cortes {
             position: absolute;
             left: 0;
@@ -1246,37 +1232,13 @@
             grid.style.gap = `${hueco}px`;
             grid.style.transform = `scale(${escala})`;
 
-            const deCostado = g.rotation % 180 !== 0;
+            const colocacion = Cartel.colocacionDeImagen(cartel, g.rotation);
             hojas.forEach(h => {
                 const hoja = document.createElement('div');
                 hoja.className = 'sheet-cartel';
                 hoja.style.width = `${paginaMm.w}mm`;
                 hoja.style.height = `${paginaMm.h}mm`;
-
-                // La pieza muestra sólo su recorte de la imagen entera
-                const pieza = document.createElement('div');
-                pieza.className = 'pieza';
-                pieza.style.left = `${h.left}mm`;
-                pieza.style.top = `${h.top}mm`;
-                pieza.style.width = `${h.recorte.w}mm`;
-                pieza.style.height = `${h.recorte.h}mm`;
-
-                const lienzo = document.createElement('div');
-                lienzo.className = 'lienzo';
-                lienzo.style.width = `${cartel.anchoMm}mm`;
-                lienzo.style.height = `${cartel.altoMm}mm`;
-                lienzo.style.transform = `translate(${-h.recorte.x}mm, ${-h.recorte.y}mm)`;
-
-                // De costado, el <img> usa ancho/alto intercambiados para que rotado ocupe el lienzo
-                const img = document.createElement('img');
-                img.src = g.url;
-                img.style.width = `${deCostado ? cartel.altoMm : cartel.anchoMm}mm`;
-                img.style.height = `${deCostado ? cartel.anchoMm : cartel.altoMm}mm`;
-                img.style.transform = `translate(-50%, -50%) rotate(${g.rotation}deg)`;
-
-                lienzo.appendChild(img);
-                pieza.appendChild(lienzo);
-                hoja.appendChild(pieza);
+                hoja.appendChild(dibujarPieza(h, colocacion, g.url));
                 hoja.appendChild(dibujarLineasDeCorte(h, paginaMm));
                 grid.appendChild(hoja);
             });
@@ -1285,16 +1247,43 @@
             container.appendChild(escalaDiv);
         }
 
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+
+        // La pieza es un SVG cuyo viewBox es el recorte, con la imagen entera adentro. No se recorta
+        // con divs y overflow: al imprimir, Chrome reparte en páginas las cajas que pasan el borde
+        // de la hoja, y la imagen aparecía corrida y sin recortar.
+        function dibujarPieza(hoja, colocacion, url) {
+            const r = hoja.recorte;
+            const svg = document.createElementNS(SVG_NS, 'svg');
+            svg.setAttribute('class', 'pieza');
+            svg.setAttribute('viewBox', `${r.x} ${r.y} ${r.w} ${r.h}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+            svg.style.left = `${hoja.left}mm`;
+            svg.style.top = `${hoja.top}mm`;
+            svg.style.width = `${r.w}mm`;
+            svg.style.height = `${r.h}mm`;
+
+            const imagen = document.createElementNS(SVG_NS, 'image');
+            imagen.setAttribute('href', url);
+            imagen.setAttribute('x', colocacion.x);
+            imagen.setAttribute('y', colocacion.y);
+            imagen.setAttribute('width', colocacion.width);
+            imagen.setAttribute('height', colocacion.height);
+            imagen.setAttribute('preserveAspectRatio', 'none');
+            imagen.setAttribute('transform', colocacion.transform);
+            svg.appendChild(imagen);
+            return svg;
+        }
+
         // SVG y no bordes de CSS: los trazos SVG se imprimen siempre, los fondos no
         function dibujarLineasDeCorte(hoja, paginaMm) {
-            const NS = 'http://www.w3.org/2000/svg';
-            const svg = document.createElementNS(NS, 'svg');
+            const svg = document.createElementNS(SVG_NS, 'svg');
             svg.setAttribute('class', 'cortes');
             svg.setAttribute('viewBox', `0 0 ${paginaMm.w} ${paginaMm.h}`);
             svg.setAttribute('width', `${paginaMm.w}mm`);
             svg.setAttribute('height', `${paginaMm.h}mm`);
             Cartel.lineasDeCorte(hoja, paginaMm).forEach(l => {
-                const linea = document.createElementNS(NS, 'line');
+                const linea = document.createElementNS(SVG_NS, 'line');
                 linea.setAttribute('x1', l.x1);
                 linea.setAttribute('y1', l.y1);
                 linea.setAttribute('x2', l.x2);

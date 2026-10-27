@@ -129,6 +129,23 @@
         return lineas;
     }
 
+    /**
+     * Dónde va la imagen original en coordenadas del cartel (mm): centrada y rotada para ocupar
+     * exactamente anchoMm × altoMm. `width`/`height` son las medidas SIN rotar (de costado van
+     * intercambiadas); `transform` es para un <image> de SVG.
+     */
+    function colocacionDeImagen(cartel, rotacion) {
+        const deCostado = rotacion % 180 !== 0;
+        const width = deCostado ? cartel.altoMm : cartel.anchoMm;
+        const height = deCostado ? cartel.anchoMm : cartel.altoMm;
+        const tx = cartel.anchoMm / 2;
+        const ty = cartel.altoMm / 2;
+        return {
+            x: -width / 2, y: -height / 2, width, height, tx, ty,
+            transform: `translate(${tx} ${ty}) rotate(${rotacion})`
+        };
+    }
+
     function cmTexto(mm) {
         return (Math.round(mm) / 10).toFixed(1).replace('.', ',');
     }
@@ -141,7 +158,7 @@
     const api = {
         PADDING_MM, GROSOR_CORTE_MM, TRAZO_CORTE, TAMANOS,
         aspectoRotado, pagina, opcionesDeHojas, cartelPorMedida, partirEnHojas, lineasDeCorte,
-        describirCartel
+        colocacionDeImagen, describirCartel
     };
     if (typeof module === 'object' && module.exports) module.exports = api;
     else raiz.Cartel = api;
