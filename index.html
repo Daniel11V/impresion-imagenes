@@ -214,6 +214,20 @@
             color: #6b7280;
         }
 
+        .wide-select {
+            width: auto;
+            max-width: 100%;
+            padding: 0.4rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .size-result {
+            font-size: 0.85rem;
+            color: #4b5563;
+        }
+
         /* Switch */
         .switch-container {
             display: flex;
@@ -506,9 +520,18 @@
 
     <div class="controls">
         <div class="header-row">
-            <!-- 1. Tamaño de Hoja -->
+            <!-- 1. Herramienta -->
             <div class="input-group">
-                <label>1. Tamaño de Hoja</label>
+                <label>1. Herramienta</label>
+                <select id="herramienta" onchange="cambiarHerramienta(this.value)">
+                    <option value="varias">Varias imágenes</option>
+                    <option value="grande">Una imagen grande</option>
+                </select>
+            </div>
+
+            <!-- 2. Tamaño de Hoja -->
+            <div class="input-group">
+                <label>2. Tamaño de Hoja</label>
                 <select id="paperSize" onchange="updateSheetSize()">
                     <option value="a4">A4</option>
                     <option value="letter">Carta (Letter)</option>
@@ -516,18 +539,18 @@
                 </select>
             </div>
 
-            <!-- 2. Cargar Imágenes -->
+            <!-- 3. Cargar Imágenes -->
             <div class="input-group">
-                <label>2. Agregar Imágenes (Selecciona varias)</label>
+                <label id="filesLabel">3. Agregar Imágenes (Selecciona varias)</label>
                 <div class="file-wrapper">
-                    <button class="file-btn">📂 Cargar Archivos...</button>
+                    <button class="file-btn" id="filesBtn">📂 Cargar Archivos...</button>
                     <input type="file" id="filesInput" accept="image/*" multiple onchange="handleFiles(this)">
                 </div>
             </div>
         </div>
 
         <!-- Lista de Imágenes Configurables -->
-        <label style="margin-bottom:0.5rem; display:block;">3. Configurar Imágenes:</label>
+        <label id="configLabel" style="margin-bottom:0.5rem; display:block;">4. Configurar Imágenes:</label>
         <div id="imageList" class="image-list">
             <div
                 style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">
@@ -544,10 +567,13 @@
         <!-- Las hojas se generan aquí dinámicamente -->
     </div>
 
+    <script src="cartel.js"></script>
     <script>
         // Estado global
         let imagesData = [];
         let currentPaperSize = 'a4';
+        let herramienta = 'varias';   // 'varias' | 'grande'
+        let imagenGrande = null;      // la imagen de "Una imagen grande"
 
         const sizes = {
             a4: { w: 210, h: 297, wStr: '210mm', hStr: '297mm' },
@@ -559,15 +585,19 @@
         const GAP_MM = 3; // Gap vertical entre filas
         const ROW_GAP_MM = 2; // Gap horizontal entre imágenes
 
+        const PX_POR_MM = 96 / 25.4;
+        const HUECO_PX = 8; // Separación visible entre hojas en la vista previa del cartel
+
         function updateSheetSize() {
             currentPaperSize = document.getElementById('paperSize').value;
+            renderUI();
+        }
+
+        // orientacion: 'portrait' | 'landscape'
+        function aplicarEstiloDePagina(orientacion) {
             const s = sizes[currentPaperSize];
-
-            // Calcular aspect ratio
-            const aspectRatio = s.w / s.h;
-
             document.getElementById('dynamic-page-style').innerHTML = `
-                @page { size: ${currentPaperSize} portrait; margin: 0; }
+                @page { size: ${currentPaperSize} ${orientacion}; margin: 0; }
                 .sheet { width: ${s.wStr}; height: ${s.hStr}; }
                 @media (max-width: 768px) {
                     .sheet {
@@ -575,12 +605,24 @@
                     }
                 }
             `;
-            renderSheet();
+        }
+
+        function cambiarHerramienta(valor) {
+            herramienta = valor;
+            const grande = valor === 'grande';
+            document.getElementById('filesInput').multiple = !grande;
+            document.getElementById('filesLabel').textContent = grande ? '3. Agregar Imagen' : '3. Agregar Imágenes (Selecciona varias)';
+            document.getElementById('filesBtn').textContent = grande ? '📂 Cargar Archivo...' : '📂 Cargar Archivos...';
+            document.getElementById('configLabel').textContent = grande ? '4. Configurar Imagen:' : '4. Configurar Imágenes:';
+            renderUI();
         }
 
         function handlePrint() {
-            if (imagesData.length === 0) {
-                alert('Por favor, carga al menos una imagen antes de imprimir.');
+            const sinImagen = herramienta === 'grande' ? !imagenGrande : imagesData.length === 0;
+            if (sinImagen) {
+                alert(herramienta === 'grande'
+                    ? 'Por favor, carga una imagen antes de imprimir.'
+                    : 'Por favor, carga al menos una imagen antes de imprimir.');
                 return;
             }
 
@@ -591,6 +633,32 @@
 
         function handleFiles(input) {
             if (!input.files || input.files.length === 0) return;
+
+            if (herramienta === 'grande') {
+                // Una sola imagen: cargar otra reemplaza la anterior
+                const file = input.files[0];
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const url = e.target.result;
+                    const dims = await loadImageDimensions(url);
+                    imagenGrande = {
+                        id: Date.now(),
+                        name: file.name,
+                        url: url,
+                        anchoPx: dims.width,
+                        altoPx: dims.height,
+                        rotation: 0,
+                        modoTamano: 'hojas',   // 'hojas' | 'medida'
+                        hojas: null,           // null = la primera opción de más de una hoja
+                        customDimension: 'width',
+                        customValue: 50.00
+                    };
+                    renderUI();
+                };
+                reader.readAsDataURL(file);
+                input.value = '';
+                return;
+            }
 
             Array.from(input.files).forEach(file => {
                 const reader = new FileReader();
@@ -646,6 +714,115 @@
             }
         }
 
+        // --- UNA IMAGEN GRANDE ---
+
+        function cartelActual() {
+            const g = imagenGrande;
+            const aspecto = Cartel.aspectoRotado(g.anchoPx, g.altoPx, g.rotation);
+            if (g.modoTamano === 'medida') {
+                return Cartel.cartelPorMedida(aspecto, currentPaperSize, g.customDimension, g.customValue);
+            }
+            const opciones = Cartel.opcionesDeHojas(aspecto, currentPaperSize);
+            let opcion = opciones.find(o => o.hojas === g.hojas);
+            if (!opcion) {
+                // Al cargar, o si al rotar / cambiar la hoja esa cantidad ya no existe:
+                // la primera opción de más de una hoja
+                opcion = opciones[1] || opciones[0];
+                g.hojas = opcion.hojas;
+            }
+            return opcion;
+        }
+
+        function actualizarGrande(campo, valor) {
+            const g = imagenGrande;
+            if (!g) return;
+            if (campo === 'modoTamano') {
+                if (valor === 'medida' && g.modoTamano !== 'medida') {
+                    // Arranca en la medida de la opción elegida: mismo tamaño, mismas hojas
+                    const actual = cartelActual();
+                    g.customValue = Math.floor(g.customDimension === 'height' ? actual.altoMm : actual.anchoMm) / 10;
+                }
+                g.modoTamano = valor;
+            } else if (campo === 'hojas') {
+                g.hojas = parseInt(valor);
+            } else if (campo === 'customDimension') {
+                g.customDimension = valor;
+            } else if (campo === 'customValue') {
+                const v = parseFloat(valor);
+                g.customValue = Math.min(300, Math.max(0.1, isNaN(v) ? g.customValue : v));
+            }
+            renderUI();
+        }
+
+        function rotarGrande() {
+            imagenGrande.rotation = (imagenGrande.rotation + 90) % 360;
+            renderUI();
+        }
+
+        function quitarGrande() {
+            imagenGrande = null;
+            renderUI();
+        }
+
+        function renderConfigGrande(container) {
+            if (!imagenGrande) {
+                container.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">No hay imagen cargada.</div>`;
+                return;
+            }
+
+            const g = imagenGrande;
+            const cartel = cartelActual();
+            const aspecto = Cartel.aspectoRotado(g.anchoPx, g.altoPx, g.rotation);
+            const opciones = Cartel.opcionesDeHojas(aspecto, currentPaperSize);
+
+            const controlesTamano = g.modoTamano === 'hojas' ? `
+                <div class="control-row">
+                    <select class="wide-select" onchange="actualizarGrande('hojas', this.value)">
+                        ${opciones.map(o => `<option value="${o.hojas}" ${o.hojas === g.hojas ? 'selected' : ''}>${Cartel.describirCartel(o)}</option>`).join('')}
+                    </select>
+                </div>
+            ` : `
+                <div class="control-row">
+                    <select class="small-select" onchange="actualizarGrande('customDimension', this.value)">
+                        <option value="width" ${g.customDimension === 'width' ? 'selected' : ''}>Ancho</option>
+                        <option value="height" ${g.customDimension === 'height' ? 'selected' : ''}>Alto</option>
+                    </select>
+                    <input type="number" class="mini-input" value="${g.customValue.toFixed(2)}"
+                        min="0.1" max="300" step="0.01"
+                        onchange="actualizarGrande('customValue', this.value)">
+                    <span class="cm-label">cm</span>
+                </div>
+                <div class="control-row size-result">Ocupa ${Cartel.describirCartel(cartel)}</div>
+            `;
+
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.innerHTML = `
+                <img src="${g.url}" class="thumb" style="transform: rotate(${g.rotation}deg);">
+                <div class="item-info">
+                    <div class="item-name" title="${g.name}">${g.name}</div>
+                    <div class="item-controls">
+                        <div class="control-row">
+                            <span class="control-label">Tamaño:</span>
+                            <select class="wide-select" onchange="actualizarGrande('modoTamano', this.value)">
+                                <option value="hojas" ${g.modoTamano === 'hojas' ? 'selected' : ''}>Por hojas</option>
+                                <option value="medida" ${g.modoTamano === 'medida' ? 'selected' : ''}>Por medida</option>
+                            </select>
+                        </div>
+                        ${controlesTamano}
+                        <div class="control-row">
+                            <span class="control-label">Rotar:</span>
+                            <button type="button" class="rotate-btn" onclick="rotarGrande()" title="Rotar 90° a la derecha">
+                                <span class="rot-icon">↻</span> ${g.rotation}°
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <button class="remove-btn" onclick="quitarGrande()" title="Quitar">×</button>
+            `;
+            container.appendChild(div);
+        }
+
         function renderUI() {
             renderList();
             renderSheet();
@@ -654,6 +831,11 @@
         function renderList() {
             const container = document.getElementById('imageList');
             container.innerHTML = '';
+
+            if (herramienta === 'grande') {
+                renderConfigGrande(container);
+                return;
+            }
 
             if (imagesData.length === 0) {
                 container.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 1rem; border: 2px dashed #e5e7eb; border-radius: 8px;">No hay imágenes cargadas.</div>`;
